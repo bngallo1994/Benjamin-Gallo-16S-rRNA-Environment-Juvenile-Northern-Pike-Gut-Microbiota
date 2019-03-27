@@ -1,0 +1,72 @@
+---
+title: "CH_1_MAPS"
+author: "Benjamin Gallo"
+date: "11/19/2018"
+output: html_document
+---
+
+CH 1 Broad Map (Upstate NY + Canada)
+
+```{r}
+library(ggmap)
+library(ggsn)
+library(ggrepel)
+
+register_google(key = "AIzaSyBDJXPYPwZMdoW5tGCVBqpvr4uBjw6oCq8")
+```
+
+
+```{r}
+UPPER_NY<-get_googlemap(center = c(lon = -75.87805556, lat = 44.34091944), zoom = 10, maptype = "terrain", color= "bw", style = 'feature:road|element:geometry|visibility:off&style=feature:all|element:labels|visibility:off')
+```
+
+
+CH 1 CRANBERRY MAP
+
+```{r}
+
+CH_1_CRAN<-get_googlemap(center = c(lon = -75.87805556, lat = 44.34091944), zoom = 15, maptype = "terrain", color= "bw", style = 'feature:road|element:geometry|visibility:off&style=feature:all|element:labels|visibility:off')
+
+CH_1_CRAN_LABS<-data.frame(lat = c(44.34391667, 44.34308611, 44.342927, 44.342785, 44.340531, 44.339709, 44.339220, 44.336249, 44.334132, 44.332505),  lon = c(-75.87416667, -75.87555556, -75.875880, -75.876902, -75.877087, -75.877816, -75.878195, -75.880485, -75.882025, -75.884599), names = c("SP1_1", "SP1 H2O", "SP1_2", "SP1_3", "SP2_ROV_1", "SP2_ROV_2", "SP2 H2O", "SP3_8", "SP3 H2O", "REF3"), stringsAsFactors = FALSE)
+
+CH_1_CRAN_MAP_FINAL<-ggmap(CH_1_CRAN) + coord_equal() + ggsn::north(x.min = -75.890, x.max = -75.8865, y.min = 44.3475, y.max = 44.3505, scale = 0.75) + coord_fixed(1.3) + ggsn::scalebar(x.min = -75.890, x.max = -75.8845, y.min = 44.3475, y.max = 44.3485, dist=0.25, dd2km = TRUE, model = "WGS84", height = 0.5, st.dist = 0.5) + coord_fixed(1.3)+ geom_point(data = CH_1_CRAN_LABS, aes(x=lon, y = lat), color = "black", size = 2, alpha=0.5) +  geom_label_repel(data = CH_1_CRAN_LABS, box.padding = 0.25, aes(x = lon, y = lat, label = names)) + geom_text(aes(label = "Cranberry Creek"), x = -75.881, y  = 44.340, size = 7, angle = 60, color = "black")
+
+CRAN_BOX<-c(left = -75.890, bottom = 44.335, right = -75.865, top = 44.350)
+CRAN_BOX_X<-c(CRAN_BOX["left"], CRAN_BOX["left"], CRAN_BOX["right"], CRAN_BOX["right"])
+CRAN_BOX_Y<-c(CRAN_BOX["bottom"], CRAN_BOX["top"], CRAN_BOX["top"], CRAN_BOX["bottom"])
+CRAN_BOX_DF<-data.frame(CRAN_BOX_X, CRAN_BOX_Y)
+
+CH_1_UPPER_NY_CRAN<-ggmap(UPPER_NY) + coord_equal() + geom_polygon(aes(x=CRAN_BOX_X, y = CRAN_BOX_Y), data=CRAN_BOX_DF, fill = NA, size = 1, linetype=1, color = "black") + coord_fixed(1.3) + geom_text(aes(label = "NEW YORK"), x = -75.8, y = 44.22, size =  4, color = "black") + geom_text(aes(label = "ST. LAWRENCE RIVER"), x = -76, y = 44.39, size = 3, color = "black", angle = 30) + geom_text(aes(label = "CANADA"), x = -76.05, y = 44.5, size = 4, color = "black") + geom_label(aes(label = "CRANBERRY CREEK"), x = -75.65,  y = 44.34, size = 2)
+
+CH_1_CRAN_ALL_FINAL<-CH_1_CRAN_MAP_FINAL + annotation_custom(ggplotGrob(CH_1_UPPER_NY_CRAN), xmin = -75.875, xmax = -75.8642, ymin = 44.329, ymax = 44.340)
+```
+
+
+French Creek
+
+```{r}
+FC_ALL_BOX_1<-c(left =  -76.150, bottom = 44.18, right = -76.125, top = 44.20)
+FC_ALL_X_1<-c(FC_ALL_BOX_1["left"], FC_ALL_BOX_1["left"], FC_ALL_BOX_1["right"], FC_ALL_BOX_1["right"])
+FC_ALL_Y_1<-c(FC_ALL_BOX_1["bottom"], FC_ALL_BOX_1["top"], FC_ALL_BOX_1["top"], FC_ALL_BOX_1["bottom"])
+FC_ALL_DF_1<-data.frame(FC_ALL_X_1, FC_ALL_Y_1)
+
+FC_ALL_BOX_2<-c(left =  -76.135, bottom = 44.2025, right = -76.090, top = 44.23)
+FC_ALL_X_2<-c(FC_ALL_BOX_2["left"], FC_ALL_BOX_2["left"], FC_ALL_BOX_2["right"], FC_ALL_BOX_2["right"])
+FC_ALL_Y_2<-c(FC_ALL_BOX_2["bottom"], FC_ALL_BOX_2["top"], FC_ALL_BOX_2["top"], FC_ALL_BOX_2["bottom"])
+FC_ALL_DF_2<-data.frame(FC_ALL_X_2, FC_ALL_Y_2)
+
+CH_1_UPPER_NY_FC_LOW<-ggmap(UPPER_NY) + coord_equal() + geom_polygon(aes(x=FC_ALL_X_2, y = FC_ALL_Y_2), data=FC_ALL_DF_2, fill = NA, size = 1, linetype=1, color = "black") + coord_fixed(1.3) + geom_text(aes(label = "NEW YORK"), x = -75.8, y = 44.22, size =  4, color = "black") + geom_text(aes(label = "ST. LAWRENCE RIVER"), x = -76, y = 44.39, size = 3, color = "black", angle = 30) + geom_text(aes(label = "CANADA"), x = -76.05, y = 44.5, size = 4, color = "black") + geom_label(aes(label = "LOWER FRENCH CREEK"), x = -76.1,  y = 44.170, size = 2)
+```
+
+Subsets of FC (FC Low)
+
+```{r}
+FC_LOW_LAT<-c(44.2025, 44.23)
+FC_LOW_LON<-c(-76.135, -76.090)
+
+CH_1_FC_LOW<-get_googlemap(center = c(lon = mean(FC_LOW_LON), lat = mean(FC_LOW_LAT)), zoom = 14, maptype = "terrain", color = "bw", style = 'feature:road|element:geometry|visibility:off&style=feature:all|element:labels|visibility:off')
+
+CH_1_FC_LOW_MAP<-ggmap(CH_1_FC_LOW) +  scale_x_continuous(limits = c(-76.135, -76.090), expand = c(0,0)) + scale_y_continuous(limits = c(44.2025, 44.23), expand = c(0,0))+ ggsn::north(x.min = -76.1315, x.max = -76.123, y.min = 44.2245, y.max = 44.2290, scale = 0.75) + coord_fixed(1.3) + ggsn::scalebar(x.min = -76.145, x.max = -76.120, y.min = 44.224, y.max = 44.226, dist = 0.5, dd2km = TRUE, model = "WGS84", height = 0.5, st.dist = 0.5) + geom_point(data = CH_1_FC_LOW_LABS, aes(x=lon, y=lat), color = "black", size = 2, alpha=0.5) + geom_label_repel(data=CH_1_FC_LOW_LABS, box.padding = 0.25, aes(x = lon, y = lat, label = names)) + geom_text(aes(label = "LOWER FRENCH CREEK"), x = -76.118,  y = 44.215, angle = 35, size = 5, color = "black")
+
+CH_1_FC_LOW_ALL_FINAL<-CH_1_FC_LOW_MAP + annotation_custom(ggplotGrob(CH_1_UPPER_NY_FC_LOW), xmin = -76.1075, xmax = -76.09, ymin = 44.199, ymax = 44.2173)
+```
