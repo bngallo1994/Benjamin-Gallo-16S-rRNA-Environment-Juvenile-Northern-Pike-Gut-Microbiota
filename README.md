@@ -27,3 +27,5 @@ CH_3_ALL_MASTER_FILE.html
 Folder: CH_1_Data
   - All data files pertaining to the aformentioned "CH_3_ALL_MASTER_FILE.Rmd" file. All file locations are correct, but may change when downloaded to your own computer.
 
+Folder: Non_R_Scripts
+  - Contains a .txt file pertaining to how the rarefaction curves were created using created .biom files and .shared files through the BIOM project and Mothur.
