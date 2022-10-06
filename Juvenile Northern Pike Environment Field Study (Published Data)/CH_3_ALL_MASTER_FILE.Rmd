@@ -12,6 +12,7 @@ output: html_document
 Necessary Packages
 
 ```{r, echo=TRUE, message=FALSE}
+library(ape)
 library(vegan)
 library(ggplot2)
 library(ggpubr)
@@ -30,20 +31,21 @@ library(multcompView)
 ```
 
 #NMDS Analysis -  Comparing Beta Diversity between Samples
+###Individual File: CH_1_NMDS_Environment.Rmd
 
 Combine all similar taxa by 'Genus'
 
 ```{r}
-CH_1_ALL<-read.csv(file ="~/CH_1_Data/CH_1_seqtab_ALL_COMBINED.csv", header = TRUE, check.names = FALSE, row.names = 1)
+CH_1_ALL<-read.csv(file ="~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/CH_1_seqtab_ALL_COMBINED.csv", header = TRUE, check.names = FALSE, row.names = 1)
 
 CH_1_ALL<-as.matrix(CH_1_ALL)
 CH_1_ALL_otu<-otu_table(CH_1_ALL, taxa_are_rows = TRUE)
 
-CH_1_ALL_metadata<-read.csv("~/CH_1_Data/NMDS/CH_1_ALL_Metadata.csv", header=TRUE, check.names = FALSE, row.names = 1)
+CH_1_ALL_metadata<-read.csv("~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/NMDS/CH_1_ALL_Metadata.csv", header=TRUE, check.names = FALSE, row.names = 1)
 
 CH_1_ALL_metadata<-sample_data(CH_1_ALL_metadata)
 
-CH_1_taxa<-read.csv(file ="~/CH_1_Data/Taxa_Graphs/CH_1_Clean_seq_REFERENCE.csv", header = TRUE, check.names = FALSE, row.names = 1)
+CH_1_taxa<-read.csv(file ="~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Taxa_Graphs/CH_1_Clean_seq_REFERENCE.csv", header = TRUE, check.names = FALSE, row.names = 1)
 
 CH_1_taxa<-as.matrix(CH_1_taxa)
 CH_1_taxa_Phylo<-tax_table(CH_1_taxa)
@@ -55,49 +57,80 @@ CH_1_ALL_melted<-tax_glom(CH_1_ALL_Phylo, "Genus")
 write.csv(otu_table(CH_1_ALL_melted), "CH_1_seqtab_ALL_COMBINED.csv")
 ```
 
+Include Tree
+```{r}
+Env_tree<-rtree(ntaxa(CH_1_ALL_melted), rooted = TRUE, tip.label = taxa_names(CH_1_ALL_melted))
+CH_1_ALL_melted<-merge_phyloseq(CH_1_ALL_melted, Env_tree)
+```
+
+```{r}
+unifracs<-GUniFrac(as.matrix(otu_table(CH_1_ALL_melted)), phy_tree(CH_1_ALL_melted), alpha = c(0, 0.5, 1))$unifracs
+```
+
+
 ALL (H2O + NP) NMDS:
 ```{r}
-CH_1_ALL_ASV<-read.csv("~/CH_1_Data/CH_1_seqtab_ALL_COMBINED.csv", header = TRUE, check.names = FALSE, row.names = 1)
+CH_1_ALL_ASV<-read.csv("~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/CH_1_seqtab_ALL_COMBINED.csv", header = TRUE, check.names = FALSE, row.names = 1)
 
-CH_1_ALL_ASV_metadata<-read.csv("~/CH_1_Data/NMDS/CH_1_ALL_Metadata.csv", header=TRUE, check.names = FALSE)
+CH_1_ALL_ASV_metadata<-read.csv("~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/NMDS/CH_1_ALL_Metadata.csv", header=TRUE, check.names = FALSE)
 
 CH_1_ALL_t_ASV<-as.data.frame(t(CH_1_ALL_ASV))
 CH_1_ALL_ASV_min_depth<-min(colSums(CH_1_ALL_ASV))
 CH_1_ALL_t_ASV_rarefied<-as.data.frame(round(rrarefy(CH_1_ALL_t_ASV,10835)))
-CH_1_ALL_ASV_dist = as.matrix(vegdist(CH_1_ALL_t_ASV_rarefied, "bray"))
-CH_1_ALL_ASV_NMDS = metaMDS(CH_1_ALL_ASV_dist)
+
+CH_1_ALL_t_ASV_rarefied_phylo_otu<-otu_table(CH_1_ALL_t_ASV_rarefied, taxa_are_rows = FALSE)
+CH_1_ALL_t_rarefied_phylo_melted<-merge_phyloseq(CH_1_ALL_melted, CH_1_ALL_t_ASV_rarefied_phylo_otu)
+
+CH_1_ALL_ASV_dist_d = distance(CH_1_ALL_t_rarefied_phylo_melted, method="unifrac", weighted = FALSE, type = "samples")
+CH_1_ALL_ASV_dist_m = as.matrix(CH_1_ALL_ASV_dist)
+CH_1_ALL_ASV_NMDS = metaMDS(CH_1_ALL_ASV_dist_m, trymax = 1000)
 CH_1_ALL_ASV_MDS1 <-CH_1_ALL_ASV_NMDS$points[,1]
 CH_1_ALL_ASV_MDS2<-CH_1_ALL_ASV_NMDS$points[,2]
 CH_1_ALL_ASV_NMDS$stress
 
-CH_1_ALL_ASV_NMDS<-data.frame(MDS1=CH_1_ALL_ASV_MDS1, MDS2=CH_1_ALL_ASV_MDS2, Sample=CH_1_ALL_ASV_metadata$Sample, Location=CH_1_ALL_ASV_metadata$Location)
+CH_1_ALL_ASV_NMDS<-data.frame(MDS1=CH_1_ALL_ASV_MDS1, MDS2=CH_1_ALL_ASV_MDS2, Sample=CH_1_ALL_ASV_metadata$Sample, Location=CH_1_ALL_ASV_metadata$Location, Loc = CH_1_ALL_ASV_metadata$Loc )
 
-CH_1_ALL_ASV<-ggplot(CH_1_ALL_ASV_NMDS, aes(x = MDS1, y = MDS2, col = Location)) + geom_point(size=2) + stat_ellipse(size=1.5) + theme_classic() + scale_colour_manual(values = c("red", "black", "blue", "green")) + labs(title = "Cranberry vs. French Creek Microbial Communities", subtitle = "Northern Pike Gut Microbiota and Water Column Bacteria") + geom_text(aes(label = "stress = 0.10"), x = -0.25, y = 0.4, color = "black", size = 5)
+CH_1_ALL_ASV<-ggplot(CH_1_ALL_ASV_NMDS, aes(x = MDS1, y = MDS2, col = Location, shape = Location)) + geom_point(size=2) + stat_ellipse(size=1.5) + theme_classic() + scale_shape_manual(values = c(16, 16, 17, 17)) + scale_colour_manual(values = c("blue", "black", "green", "red")) + labs(title = "Cranberry vs. French Creek Microbial Communities", subtitle = "Northern Pike Gut Microbiota and Water Column Bacteria", colour = "Location", shape = "Location") + geom_text(aes(label = "stress = 0.06"), x = -0.25, y = 0.35, color = "black", size = 5)
+
 
 CH_1_ALL_ASV + theme(axis.text = element_text(size=14), axis.title = element_text(size=14),plot.title = element_text(size = 14, face = "bold"))
 
-pairwise.adonis(CH_1_ALL_ASV_dist, factors = CH_1_ALL_ASV_metadata$Location)
+pairwise.adonis(CH_1_ALL_ASV_dist_m, factors = CH_1_ALL_ASV_metadata$Location)
+
+CH_1_ALL_ASV_dist_disper<-betadisper(CH_1_ALL_ASV_dist_d,  group = CH_1_ALL_ASV_metadata$Location)
+CH_1_ALL_ASV_dist_permutest<-permutest(CH_1_ALL_ASV_dist_disper, group = CH_1_ALL_ASV_metadata$Location,  pairwise = TRUE, permutation = 999)
+
+CH_1_ALL_ASV_dist_permutest
 ```
 
 H2O NMDS:
 
 ```{r}
-CH_1_H2O_ASV<-read.csv("~/NMDS/CH_1_seqs_taxa_H2O.csv", header = TRUE, check.names = FALSE, row.names = 1)
+CH_1_H2O_ASV<-read.csv("~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/NMDS/CH_1_seqs_taxa_H2O.csv", header = TRUE, check.names = FALSE, row.names = 1)
 
-CH_1_H2O_ASV_metadata<-read.csv("~/CH_1_Data/NMDS/CH_1_H2O_metadata.csv", header=TRUE, check.names = FALSE)
+CH_1_H2O_ASV_metadata<-read.csv("~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/NMDS/CH_1_H2O_metadata.csv", header=TRUE, check.names = FALSE, row.names = 1)
 
 CH_1_H2O_t_ASV<-as.data.frame(t(CH_1_H2O_ASV))
 CH_1_H2O_ASV_min_depth<-min(colSums(CH_1_H2O_ASV))
 CH_1_H2O_t_ASV_rarefied<-as.data.frame(round(rrarefy(CH_1_H2O_t_ASV, 10835)))
-CH_1_H2O_ASV_dist = as.matrix(vegdist(CH_1_H2O_t_ASV_rarefied, "bray"))
-CH_1_H2O_ASV_NMDS = metaMDS(CH_1_H2O_ASV_dist)
+
+#Create H2O Phyloseq object
+
+CH_1_H2O_otu<-otu_table(CH_1_H2O_t_ASV_rarefied, taxa_are_rows = FALSE)
+CH_1_H2O_metadata<-sample_data(CH_1_H2O_ASV_metadata)
+CH_1_H2O_Phylo<-phyloseq(CH_1_H2O_otu,CH_1_taxa_Phylo,CH_1_H2O_metadata)
+CH_1_H2O_melted<-tax_glom(CH_1_H2O_Phylo, "Genus")
+CH_1_H2O_melted<-merge_phyloseq(CH_1_H2O_melted, Env_tree)
+
+CH_1_H2O_ASV_dist = distance(CH_1_H2O_melted, method="unifrac", type = "samples")
+CH_1_H2O_ASV_NMDS = metaMDS(CH_1_H2O_ASV_dist, trymax = 1000)
 CH_1_H2O_ASV_MDS1 <-CH_1_H2O_ASV_NMDS$points[,1]
 CH_1_H2O_ASV_MDS2<-CH_1_H2O_ASV_NMDS$points[,2]
 CH_1_H2O_ASV_NMDS$stress
 
 CH_1_H2O_ASV_NMDS<-data.frame(MDS1=CH_1_H2O_ASV_MDS1, MDS2=CH_1_H2O_ASV_MDS2, Sample=CH_1_H2O_ASV_metadata$Sample, Location=CH_1_H2O_ASV_metadata$Location, Position = CH_1_H2O_ASV_metadata$Position)
 
-CH_1_H2O_ASV<-ggplot(CH_1_H2O_ASV_NMDS, aes(x = MDS1, y = MDS2, col = Location)) + geom_point(size=2) + stat_ellipse(size=1.5) + theme_classic() + scale_colour_manual(values = c("red", "black")) + labs(title = "Water Column Bacteria", subtitle = "Cranberry Creek vs. French Creek")+ geom_text(aes(label = "stress = 0.16"), x = -0.25, y = 0.18, color = "black", size = 5)
+CH_1_H2O_ASV<-ggplot(CH_1_H2O_ASV_NMDS, aes(x = MDS1, y = MDS2, col = Location)) + geom_point(size=2) + stat_ellipse(size=1.5) + theme_classic() + scale_colour_manual(values = c("Gray", "black")) + labs(title = "Water Column Bacteria", subtitle = "Cranberry Creek vs. French Creek")+ geom_text(aes(label = "stress = 0.16"), x = 0.35, y = 0.18, color = "black", size = 5)
 
 CH_1_H2O_ASV+ theme(axis.text = element_text(size=14), axis.title = element_text(size=14),plot.title = element_text(size = 14, face = "bold"))
 
@@ -106,27 +139,43 @@ pairwise.adonis(CH_1_H2O_ASV_dist, factors = CH_1_H2O_ASV_metadata$Location)
 
 #Significance by Water Column Position
 pairwise.adonis(CH_1_H2O_ASV_dist, factors = CH_1_H2O_ASV_metadata$Position)
+
+#Permutest (homogeneity of variance/dispersion)
+
+CH_1_H2O_ASV_dist_disper<-betadisper(CH_1_H2O_ASV_dist,  group = CH_1_H2O_ASV_NMDS$Location)
+CH_1_H2O_ASV_dist_permutest<-permutest(CH_1_H2O_ASV_dist_disper, group = CH_1_H2O_ASV_NMDS$Location,  pairwise = TRUE, permutation = 999)
+
+CH_1_H2O_ASV_dist_permutest
 ```
 
 NP NMDS:
 
 ```{r}
-CH_1_NP_ASV<-read.csv("~/CH_1_Data/NMDS/CH_1_seqs_taxa_NP.csv", header = TRUE, check.names = FALSE, row.names = 1)
+CH_1_NP_ASV<-read.csv("~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/NMDS/CH_1_seqs_taxa_NP.csv", header = TRUE, check.names = FALSE, row.names = 1)
 
-CH_1_NP_ASV_metadata<-read.csv("~/CH_1_Data/NMDS/CH_1_NP_metadata.csv", header=TRUE, check.names = FALSE)
+CH_1_NP_ASV_metadata<-read.csv("~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/NMDS/CH_1_NP_metadata.csv", header=TRUE, check.names = FALSE, row.names = 1)
 
 CH_1_NP_t_ASV<-as.data.frame(t(CH_1_NP_ASV))
 CH_1_NP_ASV_min_depth<-min(colSums(CH_1_NP_ASV))
 CH_1_NP_t_ASV_rarefied<-as.data.frame(round(rrarefy(CH_1_NP_t_ASV,CH_1_NP_ASV_min_depth)))
-CH_1_NP_ASV_dist = as.matrix(vegdist(CH_1_NP_t_ASV_rarefied, "bray"))
-CH_1_NP_ASV_NMDS = metaMDS(CH_1_NP_ASV_dist)
+
+#Make NP Physloeq Object
+
+CH_1_NP_otu<-otu_table(CH_1_NP_t_ASV_rarefied, taxa_are_rows = FALSE)
+CH_1_NP_metadata<-sample_data(CH_1_NP_ASV_metadata)
+CH_1_NP_Phylo<-phyloseq(CH_1_NP_otu,CH_1_taxa_Phylo,CH_1_NP_metadata)
+CH_1_NP_melted<-tax_glom(CH_1_NP_Phylo, "Genus")
+CH_1_NP_melted<-merge_phyloseq(CH_1_NP_melted, Env_tree)
+
+CH_1_NP_ASV_dist = distance(CH_1_NP_melted, method="unifrac", type = "samples")
+CH_1_NP_ASV_NMDS = metaMDS(CH_1_NP_ASV_dist, trymax = 1000)
 CH_1_NP_ASV_MDS1 <-CH_1_NP_ASV_NMDS$points[,1]
 CH_1_NP_ASV_MDS2<-CH_1_NP_ASV_NMDS$points[,2]
 CH_1_NP_ASV_NMDS$stress
 
 CH_1_NP_ASV_NMDS<-data.frame(MDS1=CH_1_NP_ASV_MDS1, MDS2=CH_1_NP_ASV_MDS2, Sample=CH_1_NP_ASV_metadata$Sample, Location=CH_1_NP_ASV_metadata$Location, Size = CH_1_NP_ASV_metadata$Size)
 
-CH_1_NP_ASV<-ggplot(CH_1_NP_ASV_NMDS, aes(x = MDS1, y = MDS2, col = Location)) + geom_point(size=2) + stat_ellipse(size=1.5) + theme_classic()+ scale_colour_manual(values = c("red", "black")) + labs(title = "Northern Pike Gut Microbiota", subtitle = "Cranberry Creek vs. French Creek")+ geom_text(aes(label = "stress = 0.18"), x = -0.5, y = -0.-0.5, color = "black", size = 5)
+CH_1_NP_ASV<-ggplot(CH_1_NP_ASV_NMDS, aes(x = MDS1, y = MDS2, col = Location)) + geom_point(size=2) + stat_ellipse(size=1.5) + theme_classic()+ scale_colour_manual(values = c("Gray", "black")) + labs(title = "Northern Pike Gut Microbiota", subtitle = "Cranberry Creek vs. French Creek")+ geom_text(aes(label = "stress = 0.16"), x = 0.5, y = 0.4, color = "black", size = 5)
 
 CH_1_NP_ASV+ theme(axis.text = element_text(size=14), axis.title = element_text(size=14),plot.title = element_text(size = 14, face = "bold"))
 
@@ -135,18 +184,26 @@ pairwise.adonis(CH_1_NP_ASV_dist, factors = CH_1_NP_ASV_metadata$Location)
 
 #Significance by Fish Size
 pairwise.adonis(CH_1_NP_ASV_dist, factors = CH_1_NP_ASV_metadata$Size)
+
+#Permutest (homogeneity of variance/dispersion)
+
+CH_1_NP_ASV_dist_disper<-betadisper(CH_1_NP_ASV_dist,  group = CH_1_NP_ASV_NMDS$Location)
+CH_1_NP_ASV_dist_permutest<-permutest(CH_1_NP_ASV_dist_disper, group = CH_1_NP_ASV_NMDS$Location,  pairwise = TRUE, permutation = 999)
+
+CH_1_NP_ASV_dist_permutest
 ```
 
 #Rarefaction Analysis - Determining Sequencing Depth
 
 ##All Samples
+###Individual File: CH_1_Rarefaction_Analysis.Rmd
 
 *Initial Analysis is completed with `biom-format` and `mothur` commands using `bash` commands. Please refer to `biom_mothur_code.txt` in pathway `~/Dropbox/bdgallo_MS_SUNYESF/NON_R_Scripts` for information*
 
 *The final product fom these commands is `CH_1_seqtab_ALL_COMBINED.groups.rarefaction`*
 
 ```{r}
-CH_1_ALLSEQS_Rare<-read.table("~/CH_1_Data/CH_1_Rarefaction_Alpha_Diversity/CH_1_seqtab_ALL_COMBINED.groups.rarefaction", header = TRUE)
+CH_1_ALLSEQS_Rare<-read.table("~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/CH_1_Rarefaction_Alpha_Diversity/CH_1_seqtab_ALL_COMBINED.groups.rarefaction", header = TRUE)
 CH_1_ALLSEQS_Rare_DataColumnsPrimary<-CH_1_ALLSEQS_Rare[grepl("use", names(CH_1_ALLSEQS_Rare))]
 CH_1_ALLSEQS_Rare_numSampled<-CH_1_ALLSEQS_Rare[, c("numsampled")]
 CH_1_ALLSEQS_Rare<-cbind (CH_1_ALLSEQS_Rare_numSampled, CH_1_ALLSEQS_Rare_DataColumnsPrimary)
@@ -155,7 +212,7 @@ write.csv(CH_1_ALLSEQS_Rare_long, "CH_1_ALLSEQS_Rare_long.csv")
 
 ###Export .csv file and manually input sample locations using metadata###
 
-CH_1_ALLSEQS_Rare_long<-read.csv(file = "~/CH_1_Data/CH_1_Rarefaction_Alpha_Diversity/CH_1_ALLSEQS_Rare_long.csv", header = TRUE)
+CH_1_ALLSEQS_Rare_long<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/CH_1_Rarefaction_Alpha_Diversity/CH_1_ALLSEQS_Rare_long.csv", header = TRUE)
 
 options (scipen = 10000000)
 CH_1_ALLSEQS_rarefaction<-ggplot(data=CH_1_ALLSEQS_Rare_long, aes(x = CH_1_ALLSEQS_Rare_numSampled, y = value, color = Location.Type)) + geom_line(aes(group=variable), size=1.5) + xlab("Number of Sequences") + ylab("ASVs (100%)") + labs(title = "Rarefaction Curves", subtitle = "Cranberry Creek and French Creek H2O and YOY Northern Pike") + theme_classic()+ scale_color_manual(values = c("black", "red", "blue", "green"))
@@ -164,8 +221,8 @@ CH_1_ALLSEQS_rarefaction + theme(axis.text = element_text(size=14), axis.title =
 
 ###Using CH_1_ALLSEQS_Rare_long.csv file, split up H2O and NP Samples into two separate .csv files###
 
-CH_1_H2O_Rare_long<-read.csv(file = "~/CH_1_Data/CH_1_Rarefaction_Alpha_Diversity/CH_1_H2O_long.csv", header = TRUE)
-CH_1_NP_Rare_long<-read.csv(file = "~/CH_1_Data/CH_1_Rarefaction_Alpha_Diversity/CH_1_NP_long.csv", header = TRUE)
+CH_1_H2O_Rare_long<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/CH_1_Rarefaction_Alpha_Diversity/CH_1_H2O_long.csv", header = TRUE)
+CH_1_NP_Rare_long<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/CH_1_Rarefaction_Alpha_Diversity/CH_1_NP_long.csv", header = TRUE)
 
 CH_1_H2O_rarefaction<-ggplot(data=CH_1_H2O_Rare_long, aes(x = CH_1_ALLSEQS_Rare_numSampled, y = value, color = Location.Type)) + geom_line(aes(group=variable), size=1.5) + scale_color_manual(values = c("blue", "green", "pink")) + xlab("Number of Sequences") + ylab("ASVs (100%)") + labs(title = "Rarefaction Curves", subtitle = "Cranberry Creek and French Creek H2O") + theme_classic()
 
@@ -178,6 +235,7 @@ CH_1_NP_rarefaction
 
 #Taxa  Analysis - Determining Top 10 Taxa for Treatments
 ##All Samples
+###Individual File: CH_1_taxa_graphs.Rmd
 
 *Note that taxa excel sheet was cleaned manually by removing all NA calls in Kingdom and Phylum columns. Additionally, any Kingdom tracing to Eukaryotes/Archaea were also removed*
 
@@ -218,7 +276,7 @@ ZOOP_Palette<-function (n)
     else rgb(x[, 1L], x[, 2L], x[, 3L], maxColorValue = 255)
 }
 
-CH_1_Top10_Taxa_Percent_ENV<-read.csv(file = "~/CH_1_Data/Taxa_Graphs/CH_1_Top10_Taxa_Percent_ENV.csv", header=TRUE, check.names = FALSE)
+CH_1_Top10_Taxa_Percent_ENV<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Taxa_Graphs/CH_1_Top10_Taxa_Percent_ENV.csv", header=TRUE, check.names = FALSE)
 
 CH_1_Top10_Taxa_Percent_ENV$Location<-factor(CH_1_Top10_Taxa_Percent_ENV$Location, levels = c("Cranberry/H2O",  "French Creek/H2O"))
 
@@ -228,14 +286,14 @@ CH_1_Top10_Taxa_Percent_ENV$SE<-CH_1_Top10_Taxa_Percent_ENV$SE*100
 colourCount<-length(unique(CH_1_Top10_Taxa_Percent_ENV$Genus))
 getPalette<-colorRampPalette(brewer.pal(8, "Set1"))
 
-CH_1_Top10_Taxa_Percent_ENV_Graph<-ggplot(CH_1_Top10_Taxa_Percent_ENV, aes(x=Location, y = Average, fill = Genus)) + geom_bar(colour = "black", stat = "identity", position = position_dodge()) + theme_classic() + scale_fill_manual(values = getPalette(colourCount)) + labs(title = "Larval Northern Pike Gut Microbiota", subtitle = "Top 10 Bacterial Genera Wetland Water Samples", x = "", y = "Relative ASV Abundance (%)")+ theme(axis.text.x = element_text(angle = 45, hjust = 1)) + geom_errorbar(aes(ymin=Average-SE, ymax = Average+SE), width=.2, position=position_dodge(.9))
+CH_1_Top10_Taxa_Percent_ENV_Graph<-ggplot(CH_1_Top10_Taxa_Percent_ENV, aes(x=Location, y = Average, fill = Genus)) + geom_bar(colour = "black", stat = "identity", position = position_dodge()) + theme_classic() + scale_fill_manual(values = getPalette(colourCount)) + labs(title = "Wetland Water Sample Microbiota", subtitle = "Top 10 Bacterial Genera Wetland Water Samples", x = "", y = "Relative ASV Abundance (%)")+ theme(axis.text.x = element_text(angle = 45, hjust = 1)) + geom_errorbar(aes(ymin=Average-SE, ymax = Average+SE), width=.2, position=position_dodge(.9))
 
 CH_1_Top10_Taxa_Percent_ENV_Graph<-CH_1_Top10_Taxa_Percent_ENV_Graph+ theme(axis.text = element_text(size=14), axis.title = element_text(size=14), plot.title = element_text(size = 14, face = "bold"),legend.text = element_text(size=14), legend.title = element_text(size=14))
 
 
 #FISH
 
-CH_1_Top10_Taxa_Percent_FISH<-read.csv(file = "~/CH_1_Data/Taxa_Graphs/CH_1_Top10_Taxa_Percent_FISH.csv", header=TRUE, check.names = FALSE)
+CH_1_Top10_Taxa_Percent_FISH<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Taxa_Graphs/CH_1_Top10_Taxa_Percent_FISH.csv", header=TRUE, check.names = FALSE)
 
 CH_1_Top10_Taxa_Percent_FISH$Location<-factor(CH_1_Top10_Taxa_Percent_FISH$Location, levels = c("Cranberry/NP",  "French Creek/NP"))
 
@@ -245,7 +303,7 @@ CH_1_Top10_Taxa_Percent_FISH$SE<-CH_1_Top10_Taxa_Percent_FISH$SE * 100
 colourCount<-length(unique(CH_1_Top10_Taxa_Percent_FISH$Genus))
 getPalette<-colorRampPalette(brewer.pal(8, "Set1"))
 
-CH_1_Top10_Taxa_Percent_FISH_Graph<-ggplot(CH_1_Top10_Taxa_Percent_FISH, aes(x=Location, y = Average, fill = Genus)) + geom_bar(colour = "black", stat = "identity", position = position_dodge()) + theme_classic() + scale_fill_manual(values = getPalette(colourCount)) + labs(title = "Larval Northern Pike Gut Microbiota", subtitle = "Top 10 Bacterial Genera in Northern Pike", x = "", y = "")+ theme(axis.text.x = element_text(angle = 51, hjust = 1)) + geom_errorbar(aes(ymin=Average-SE, ymax = Average+SE), width=.2, position=position_dodge(.9))
+CH_1_Top10_Taxa_Percent_FISH_Graph<-ggplot(CH_1_Top10_Taxa_Percent_FISH, aes(x=Location, y = Average, fill = Genus)) + geom_bar(colour = "black", stat = "identity", position = position_dodge()) + theme_classic() + scale_fill_manual(values = getPalette(colourCount)) + labs(title = "Juvenile Northern Pike Gut Microbiota", subtitle = "Top 10 Bacterial Genera in Northern Pike", x = "", y = "")+ theme(axis.text.x = element_text(angle = 51, hjust = 1)) + geom_errorbar(aes(ymin=Average-SE, ymax = Average+SE), width=.2, position=position_dodge(.9))
 
 CH_1_Top10_Taxa_Percent_FISH_Graph<-CH_1_Top10_Taxa_Percent_FISH_Graph+ theme(axis.text = element_text(size=14), axis.title = element_text(size=14), plot.title = element_text(size = 14, face = "bold"), legend.text = element_text(size=14), legend.title = element_text(size=14))
 
@@ -264,7 +322,7 @@ plot_heatmap(CH_1_ALL_Phylo.top10, sample.label = "Location",  "NMDS", "bray", "
 #Alpha Diversity Analysis
 
 ##Observed, Chao1, Shannon
-
+###Individual File: CH_2_Alpha_Diversity.Rmd
 ```{r}
 ###Phyloseq Object from CH.1 taxa analysis carried over###
 
@@ -292,16 +350,17 @@ CH_1_ALL_Shannon_PH
 #Core Microbiome Analysis
 
 ##Microbes with >50% coverage and >1% total microbiota per sample
+###Individual File: CH_1_Core_Microbiome.Rmd
 
 Cran NP (Normalized):
 ```{r}
 
-CH_1_CranNP<-read.csv("~/CH_1_Data/Core_Microbiome/CH_1_CranNP.csv", header = TRUE, check.names = FALSE)
+CH_1_CranNP<-read.csv("~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Core_Microbiome/CH_1_CranNP.csv", header = TRUE, check.names = FALSE)
 CH_1_CranNP.names<-make.names(CH_1_CranNP$Genus, unique = TRUE)
 rownames(CH_1_CranNP)<-CH_1_CranNP.names
 CH_1_CranNP$Genus<-NULL
 
-CH_1_CranNP_metadata<-read.csv("~/CH_1_Data/Core_Microbiome/CH_1_CranNP_metadata.csv", header=TRUE, check.names = FALSE, row.names = 1)
+CH_1_CranNP_metadata<-read.csv("~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Core_Microbiome/CH_1_CranNP_metadata.csv", header=TRUE, check.names = FALSE, row.names = 1)
 
 CH_1_CranNP_metadata_Phylo<-sample_data(CH_1_CranNP_metadata)
 
@@ -316,13 +375,13 @@ CH_1_CranNP_Prevalence[1:50]
 FC Low NP (Normalized):
 
 ```{r}
-CH_1_FCLOW_NP<-read.csv("~/CH_1_Data/Core_Microbiome/CH_1_FCLOW_NP.csv", header = TRUE, check.names = FALSE)
+CH_1_FCLOW_NP<-read.csv("~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Core_Microbiome/CH_1_FCLOW_NP.csv", header = TRUE, check.names = FALSE)
 CH_1_FCLOW_NP.names<-make.names(CH_1_FCLOW_NP$Genus, unique = TRUE)
 rownames(CH_1_FCLOW_NP)<-CH_1_FCLOW_NP.names
 CH_1_FCLOW_NP$Genus<-NULL
 CH_1_FCLOW_NP$Genus<-NULL
 
-CH_1_FC_LOW_NP_metadata<-read.csv("~/CH_1_Data/Core_Microbiome/CH_1_FCLOW_NP_metadata.csv", header=TRUE, check.names = FALSE, row.names = 1)
+CH_1_FC_LOW_NP_metadata<-read.csv("~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Core_Microbiome/CH_1_FCLOW_NP_metadata.csv", header=TRUE, check.names = FALSE, row.names = 1)
 
 CH_1_FC_LOW_NP_metadata_Phylo<-sample_data(CH_1_FC_LOW_NP_metadata)
 
@@ -337,9 +396,9 @@ CH_1_FCLOW_NP_Prevalence[1:50]
 CRAN(Graph):
 
 ```{r}
-CRAN_H2O_Log2<-read.csv(file = "~/CH_1_Data/Core_Microbiome/CH_1_CRAN_H2O_Log2.csv", header = TRUE, check.names = FALSE)
+CRAN_H2O_Log2<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Core_Microbiome/CH_1_CRAN_H2O_Log2.csv", header = TRUE, check.names = FALSE)
 
-CRAN_NP_Log2<-read.csv(file = "~/CH_1_Data/Core_Microbiome/CH_1_Cran_NP_Log2.csv", header = TRUE, check.names = FALSE)
+CRAN_NP_Log2<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Core_Microbiome/CH_1_Cran_NP_Log2.csv", header = TRUE, check.names = FALSE)
 
 CRAN_H2O_Log2_Graph<-ggplot(data = CRAN_H2O_Log2, aes(x=Location, y = AVG, fill = Genus)) + geom_bar(stat="identity", color="black", position = position_dodge()) + geom_errorbar(aes(ymin=AVG-SE, ymax = AVG+SE), width=.2, position=position_dodge(.9)) + ylim(0, 0.6) + labs(title = "Environmental Samples", subtitle = "Cranberry Creek", y = "ASV Abundance(%)", x = "") + theme_classic()
 
@@ -352,9 +411,9 @@ CRAN_Log2_FINAL
 FC Low (Graph):
 
 ```{r}
-FCLOW_H2O_Log2<-read.csv(file = "~/CH_1_Data/Core_Microbiome/CH_1_FCLOW_H2O_Log2.csv", header = TRUE, check.names = FALSE)
+FCLOW_H2O_Log2<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Core_Microbiome/CH_1_FCLOW_H2O_Log2.csv", header = TRUE, check.names = FALSE)
 
-FCLOW_NP_Log2<-read.csv(file = "~/CH_1_Data/Core_Microbiome/CH_1_FCLOW_NP_Log2.csv", header = TRUE, check.names = FALSE)
+FCLOW_NP_Log2<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Core_Microbiome/CH_1_FCLOW_NP_Log2.csv", header = TRUE, check.names = FALSE)
 
 FCLOW_H2O_Log2_Graph<-ggplot(data = FCLOW_H2O_Log2, aes(x=Location, y = AVG, fill = Genus)) + geom_bar(stat="identity", color="black", position = position_dodge()) + geom_errorbar(aes(ymin=AVG-SE, ymax = AVG+SE), width=.2, position=position_dodge(.9)) + ylim(0, 0.5) + labs(title = "Environmental Samples", subtitle = "Lower French Creek", y = "ASV Abundance(%)", x = "") + theme_classic()
 
@@ -367,15 +426,15 @@ FCLOW_Log2_FINAL
 Comparing between Core Gut Microbiotas (Environments + NP) Graphs:
 
 ```{r}
-CH_1_ALL_ENV_Log2<-read.csv(file = "~/CH_1_Data/Core_Microbiome/CH_1_ENV_COMPARE_ALL_MERGE_Log2.csv", header = TRUE, check.names = FALSE)
+CH_1_ALL_ENV_Log2<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Core_Microbiome/CH_1_ENV_COMPARE_ALL_MERGE_Log2.csv", header = TRUE, check.names = FALSE)
 
-CH_1_ALL_ENV_Log2_Graph<-ggplot(data = CH_1_ALL_ENV_Log2, aes(x=Location, y = AVG, fill = Genus)) + geom_bar(stat="identity", color="black", position = position_dodge()) + geom_errorbar(aes(ymin=AVG-SE, ymax = AVG+SE), width=.2, position=position_dodge(.9)) + ylim(0, 0.2) + labs(title = "Environmental Samples", subtitle = "All Sites", y = "ASV Abundance(%)", x = "") + theme_classic()
+CH_1_ALL_ENV_Log2_Graph<-ggplot(data = CH_1_ALL_ENV_Log2, aes(x=Location, y = AVG, fill = Genus)) + geom_bar(stat="identity", color="black", position = position_dodge()) + geom_errorbar(aes(ymin=AVG-SE, ymax = AVG+SE), width=.2, position=position_dodge(.9)) + ylim(0, 0.2) + labs(title = "Wetland Water Sample Microbiota", subtitle = "Northern Pike Core Gut Microbiota Abundance In Water Samples", y = "ASV Abundance(%)", x = "") + theme_classic()
 
 CH_1_ALL_ENV_Log2_Graph<-CH_1_ALL_ENV_Log2_Graph+ theme(axis.text = element_text(size=14), axis.title = element_text(size=14), plot.title = element_text(size = 14, face = "bold"), legend.text = element_text(size=14), legend.title = element_text(size=14))
 
-CH_1_ALL_NP_Log2<-read.csv(file = "~/CH_1_Data/Core_Microbiome/CH_1_NP_ALL_MERGE_Log2.csv", header = TRUE, check.names = FALSE)
+CH_1_ALL_NP_Log2<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Core_Microbiome/CH_1_NP_ALL_MERGE_Log2.csv", header = TRUE, check.names = FALSE)
 
-CH_1_ALL_NP_Log2_Graph<-ggplot(data = CH_1_ALL_NP_Log2, aes(x=Location, y = AVG, fill = Genus)) + geom_bar(stat="identity", color="black", position = position_dodge()) + geom_errorbar(aes(ymin=AVG-SE, ymax = AVG+SE), width=.2, position=position_dodge(.9)) + labs(title = "Core Gut Microbiome Selection in Juvenile Pike", subtitle = "All Sites", x = "", y = "") + theme_classic()+ geom_text(aes(label = "Core", x = 0.66, y = 22), color = "black", size = 4)+ geom_text(aes(label = "Core", x = 0.89, y = 51), color = "black", size = 4)+ geom_text(aes(label = "Core", x = 1.12, y = 10), color = "black", size = 4) + geom_text(aes(label = "Core", x = 1.34, y = 30), color = "black", size = 4)+ geom_text(aes(label = "Core", x = 1.66, y = 18), color = "black", size = 4)+ geom_text(aes(label = "Core", x = 2.11, y = 37), color = "black", size = 4)+ geom_text(aes(label = "Core", x = 2.34, y = 11), color = "black", size = 4)
+CH_1_ALL_NP_Log2_Graph<-ggplot(data = CH_1_ALL_NP_Log2, aes(x=Location, y = AVG, fill = Genus)) + geom_bar(stat="identity", color="black", position = position_dodge()) + geom_errorbar(aes(ymin=AVG-SE, ymax = AVG+SE), width=.2, position=position_dodge(.9)) + labs(title = "Core Gut Microbiota Selection in Juvenile Pike", subtitle = "Cranberry Creek + French Creek", x = "", y = "") + theme_classic()+ geom_text(aes(label = "Core", x = 0.66, y = 22), color = "black", size = 4)+ geom_text(aes(label = "Core", x = 0.89, y = 51), color = "black", size = 4)+ geom_text(aes(label = "Core", x = 1.12, y = 10), color = "black", size = 4) + geom_text(aes(label = "Core", x = 1.34, y = 30), color = "black", size = 4)+ geom_text(aes(label = "Core", x = 1.66, y = 18), color = "black", size = 4)+ geom_text(aes(label = "Core", x = 2.11, y = 37), color = "black", size = 4)+ geom_text(aes(label = "Core", x = 2.34, y = 11), color = "black", size = 4)
 
 
 CH_1_ALL_NP_Log2_Graph<-CH_1_ALL_NP_Log2_Graph+ theme(axis.text = element_text(size=14), axis.title = element_text(size=14), plot.title = element_text(size = 14, face = "bold"), legend.text = element_text(size=14), legend.title = element_text(size=14))
@@ -391,7 +450,7 @@ Determining significant effects on Core microbiota abundances between locations:
 
 #All NP samples were grouped in one file with core microbiota genera and location of samples. Absolute abundance was determined by taking read count and dividing by 10,835 (Normalized depth)
 
-CH_1_NP_compare<-read.csv(file = "~/CH_1_Data/Core_Microbiome/CH_1_NP_Core_Compare.csv", header=TRUE, check.names = FALSE)
+CH_1_NP_compare<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Core_Microbiome/CH_1_NP_Core_Compare.csv", header=TRUE, check.names = FALSE)
 
 hist(CH_1_NP_compare$Abundance)
 CH_1_Core_Abundance<-CH_1_NP_compare$Abundance
@@ -416,13 +475,21 @@ CRAN
 #Combine data from CH_1_CRAN_H2O_Log2 & CH_1_CRAN_NP_Log2
 #Rename .csv as CH_1_Cran_Compare.csv
 
-CH_1_Cran_Compare<-read.csv(file = "~/CH_1_Data/Core_Microbiome/CH_1_CRAN_COMPARE.csv", header=TRUE, check.names = FALSE)
+CH_1_Cran_Compare<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Core_Microbiome/CH_1_CRAN_COMPARE.csv", header=TRUE, check.names = FALSE)
 
 CH_1_Cran_log2fc<-log2(CH_1_Cran_Compare$Log2)
 
 CranLog2<-ggplot(CH_1_Cran_Compare, aes(Genus, CH_1_Cran_log2fc), size = 10, shape = 2) +  geom_point(shape=18, size = 10) + ylim(-5,16) + theme_classic()+ labs (y = "Log2-Fold Change", title =  "Cranberry Creek", subtitle = "Northern Pike vs. Water Samples") + theme(axis.text.x = element_text(angle=315, vjust = -0.25, hjust = .25))+ geom_hline(yintercept = 0) + geom_hline(yintercept = -1, linetype = "dashed") + geom_hline(yintercept = 1, linetype = "dashed")
 
 CranLog2<-CranLog2+ theme(axis.text = element_text(size=14), axis.title = element_text(size=14), plot.title = element_text(size = 14, face = "bold"), legend.text = element_text(size=14), legend.title = element_text(size=14))
+
+
+CH_1_All_Combined<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Core_Microbiome/CH_1_COMPARE_ALL.csv", header=TRUE, check.names = FALSE)
+
+CH_1_All_log2fc<-log2(CH_1_All_Combined$Log2)
+
+AllLog2<-ggplot(CH_1_All_Combined, aes(Genus, CH_1_All_log2fc, shape = Location), size=10) + geom_point(size=10) + ylim(-5,16) + theme_classic()+ scale_shape_manual(values = c(1, 2)) + labs (y = "Log2-Fold Change", title =  "Cranberry Creek & French Creek", subtitle = "Northern Pike vs. Water Samples") + theme(axis.text.x = element_text(angle=315, vjust = -0.25, hjust = .25))+ geom_hline(yintercept = 0) + geom_hline(yintercept = -1, linetype = "dashed") + geom_hline(yintercept = 1, linetype = "dashed")
+
 ```
 
 FC LOW
@@ -431,7 +498,7 @@ FC LOW
 #Combine data from CH_1_FCLOW_H2O_Log2 & CH_1_FCLOW_NP_Log2
 #Rename .csv as CH_1_FCLOW_Compare.csv
 
-CH_1_FCLOW_Compare<-read.csv(file = "~/CH_1_Data/Core_Microbiome/CH_1_FCLOW_COMPARE.csv", header=TRUE, check.names = FALSE)
+CH_1_FCLOW_Compare<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Core_Microbiome/CH_1_FCLOW_COMPARE.csv", header=TRUE, check.names = FALSE)
 
 CH_1_FCLOW_log2fc<-log2(CH_1_FCLOW_Compare$Log2)
 CH_1_FCLOW_Compare$Log2<-CH_1_FCLOW_log2fc
@@ -449,13 +516,14 @@ ggarrange(CranLog2, FCLog2, labels = c("A", "B"), ncol = 2)
 
 #Tax4Fun Analysis -  Predicting Microbial Functions based on Community Composition
 ##Site vs. Site
+###Individual File: CH_1_Tax4Fun_Microbial_Function_Predictions.Rmd
 
 Determine Microbe Functions with Tax4Fun
 
 ```{r}
 #Note the Mycoplasma dominated FC Low sample (NP 002) was removed as an outlier.
 
-CH_1_Tax4Fun_ASVs<-read.csv(file = "~/CH_1_Data/Tax4Fun/CH_1_Tax4Fun_ASVs.csv", header = TRUE, check.names = FALSE, row.names = 1)
+CH_1_Tax4Fun_ASVs<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Tax4Fun/CH_1_Tax4Fun_ASVs.csv", header = TRUE, check.names = FALSE, row.names = 1)
 
 CH_1_Tax4Fun_ASVs_t<-as.data.frame(t(CH_1_Tax4Fun_ASVs))
 CH_1_Tax4Fun_ASVs_m<-as.matrix(CH_1_Tax4Fun_ASVs_t)
@@ -481,33 +549,33 @@ head(sort(colSums(CH_1_FUNCTIONS$fxn_table), decreasing = TRUE), n = 20)
 
 #Environmental Signal Processing
 
-CH_1_Tax4Fun_ENV_Proc<-read.csv(file = "~/CH_1_Data/Tax4Fun/CH_1_Tax4Fun_Analysis_Env_Sig.csv", header = TRUE, check.names = FALSE)
+CH_1_Tax4Fun_ENV_Proc<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Tax4Fun/CH_1_Tax4Fun_Analysis_Env_Sig.csv", header = TRUE, check.names = FALSE)
 
-CH_1_Tax4Fun_Env_Sig_Graph<-ggplot(data = CH_1_Tax4Fun_ENV_Proc, aes(x = Pathways, y =AVG, fill = Location)) + geom_bar(stat="identity", color = "black", position = position_dodge()) + labs (title = "Tax4Fun Microbial Function Predictions", subtitle = "Environmental Information Processing", y = "Relative Gene Abundance", x = "") + theme(axis.text.y = element_text(size =7)) + geom_errorbar(aes(ymin=AVG-SE, ymax=AVG+SE), width=.2, position=position_dodge(0.9)) + theme_classic() + theme(axis.ticks.x.bottom = element_blank()) + theme(axis.text.x = element_blank()) + scale_fill_manual(values = c("darkslategray2", "darkgoldenrod4"))
+CH_1_Tax4Fun_Env_Sig_Graph<-ggplot(data = CH_1_Tax4Fun_ENV_Proc, aes(x = Pathways, y =AVG, fill = Location)) + geom_bar(stat="identity", color = "black", position = position_dodge()) + labs (title = "Tax4Fun Microbial Function Predictions", subtitle = "Environmental Information Processing", y = "Relative Gene Abundance", x = "") + theme(axis.text.y = element_text(size =7)) + geom_errorbar(aes(ymin=AVG-SE, ymax=AVG+SE), width=.2, position=position_dodge(0.9)) + theme_classic() + theme(axis.ticks.x.bottom = element_blank()) + theme(axis.text.x = element_blank()) + scale_fill_manual(values = c("darkslategray2", "darkgoldenrod4")) + geom_text(aes(label = "A"), x = 0.77, y = 0.006, size = 5, color = "black") + geom_text(aes(label = "B"), x = 1.23, y = 0.009, size = 5, color = "black") + ylim(0, 0.011)
 
 CH_1_Tax4Fun_Env_Sig_Graph<-CH_1_Tax4Fun_Env_Sig_Graph+ theme(axis.text = element_text(size=14), axis.title = element_text(size=14), plot.title = element_text(size = 14, face = "bold"), legend.text = element_text(size=14), legend.title = element_text(size=14))
 
 #Cellular Processes
 
-CH_1_Tax4Fun_Cell_Proc<-read.csv(file = "~/CH_1_Data/Tax4Fun/CH_1_Tax4Fun_Cell_Proc.csv", header = TRUE, check.names = FALSE)
+CH_1_Tax4Fun_Cell_Proc<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Tax4Fun/CH_1_Tax4Fun_Cell_Proc.csv", header = TRUE, check.names = FALSE)
 
-CH_1_Tax4Fun_Cell_Sig_Graph<-ggplot(data = CH_1_Tax4Fun_Cell_Proc, aes(x = Pathways, y =AVG, fill = Location)) + geom_bar(stat="identity", color = "black", position = position_dodge()) + labs (title = "Tax4Fun Microbial Function Predictions", subtitle = "Cellular Processes", y = "", x = "") + theme(axis.text.y = element_text(size =7)) + geom_errorbar(aes(ymin=AVG-SE, ymax=AVG+SE), width=.2, position=position_dodge(0.9)) + theme_classic() + theme(axis.ticks.x.bottom = element_blank()) + theme(axis.text.x = element_blank())+ scale_fill_manual(values = c("darkslategray2", "darkgoldenrod4"))
+CH_1_Tax4Fun_Cell_Sig_Graph<-ggplot(data = CH_1_Tax4Fun_Cell_Proc, aes(x = Pathways, y =AVG, fill = Location)) + geom_bar(stat="identity", color = "black", position = position_dodge()) + labs (title = "Tax4Fun Microbial Function Predictions", subtitle = "Cellular Processes", y = "", x = "") + theme(axis.text.y = element_text(size =7)) + geom_errorbar(aes(ymin=AVG-SE, ymax=AVG+SE), width=.2, position=position_dodge(0.9)) + theme_classic() + theme(axis.ticks.x.bottom = element_blank()) + theme(axis.text.x = element_blank())+ scale_fill_manual(values = c("darkslategray2", "darkgoldenrod4"))+ geom_text(aes(label = "A"), x = 0.77, y = 0.006, size = 5, color = "black") + geom_text(aes(label = "B"), x = 1.23, y = 0.009, size = 5, color = "black") + ylim(0, 0.011)
 
 CH_1_Tax4Fun_Cell_Sig_Graph<-CH_1_Tax4Fun_Cell_Sig_Graph+ theme(axis.text = element_text(size=14), axis.title = element_text(size=14), plot.title = element_text(size = 14, face = "bold"), legend.text = element_text(size=14), legend.title = element_text(size=14))
 
 #Metabolic Pathways
 
-CH_1_Tax4Fun_Meta<-read.csv(file = "~/CH_1_Data/Tax4Fun/CH_1_Tax4Fun_Metabolic.csv", header = TRUE, check.names = FALSE)
+CH_1_Tax4Fun_Meta<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Tax4Fun/CH_1_Tax4Fun_Metabolic.csv", header = TRUE, check.names = FALSE)
 
-CH_1_Tax4Fun_Metabolic_Graph<-ggplot(data = CH_1_Tax4Fun_Meta, aes(x = Pathways, y =AVG, fill = Location)) + geom_bar(stat="identity", color = "black", position = position_dodge()) + labs (title = "Tax4Fun Microbial Function Predictions", subtitle = "Metabolic Pathways", y = "Relative Gene Abundance", x = "") + theme(axis.text.y = element_text(size =7)) + geom_errorbar(aes(ymin=AVG-SE, ymax=AVG+SE), width=.2, position=position_dodge(0.9)) + theme_classic() + theme(axis.ticks.x.bottom = element_blank()) + theme(axis.text.x = element_blank())+ scale_fill_manual(values = c("darkslategray2", "darkgoldenrod4"))
+CH_1_Tax4Fun_Metabolic_Graph<-ggplot(data = CH_1_Tax4Fun_Meta, aes(x = Pathways, y =AVG, fill = Location)) + geom_bar(stat="identity", color = "black", position = position_dodge()) + labs (title = "Tax4Fun Microbial Function Predictions", subtitle = "Metabolic Pathways", y = "Relative Gene Abundance", x = "") + theme(axis.text.y = element_text(size =7)) + geom_errorbar(aes(ymin=AVG-SE, ymax=AVG+SE), width=.2, position=position_dodge(0.9)) + theme_classic() + theme(axis.ticks.x.bottom = element_blank()) + theme(axis.text.x = element_blank())+ scale_fill_manual(values = c("darkslategray2", "darkgoldenrod4"))+ geom_text(aes(label = "A"), x = 0.77, y = 0.029, size = 5, color = "black") + geom_text(aes(label = "A"), x = 1.23, y = 0.027, size = 5, color = "black") + ylim(0, 0.032)
 
 CH_1_Tax4Fun_Metabolic_Graph<-CH_1_Tax4Fun_Metabolic_Graph+ theme(axis.text = element_text(size=14), axis.title = element_text(size=14), plot.title = element_text(size = 14, face = "bold"), legend.text = element_text(size=14), legend.title = element_text(size=14))
 
 #Genetic Information Processing
 
-CH_1_Tax4Fun_Gen<-read.csv(file = "~/CH_1_Data/Tax4Fun/CH_1_Tax4Fun_Genetic_Proc.csv", header = TRUE, check.names = FALSE)
+CH_1_Tax4Fun_Gen<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Tax4Fun/CH_1_Tax4Fun_Genetic_Proc.csv", header = TRUE, check.names = FALSE)
 
-CH_1_Tax4Fun_Gen_Graph<-ggplot(data = CH_1_Tax4Fun_Gen, aes(x = Pathways, y =AVG, fill = Location)) + geom_bar(stat="identity", color = "black", position = position_dodge()) + labs (title = "Tax4Fun Microbial Function Predictions", subtitle = "Genetic Information Processing", y = "", x = "") + theme(axis.text.y = element_text(size =7)) + geom_errorbar(aes(ymin=AVG-SE, ymax=AVG+SE), width=.2, position=position_dodge(0.9)) + theme_classic() + theme(axis.ticks.x.bottom = element_blank()) + theme(axis.text.x = element_blank())+ scale_fill_manual(values = c("darkslategray2", "darkgoldenrod4"))
+CH_1_Tax4Fun_Gen_Graph<-ggplot(data = CH_1_Tax4Fun_Gen, aes(x = Pathways, y =AVG, fill = Location)) + geom_bar(stat="identity", color = "black", position = position_dodge()) + labs (title = "Tax4Fun Microbial Function Predictions", subtitle = "Genetic Information Processing", y = "", x = "") + theme(axis.text.y = element_text(size =7)) + geom_errorbar(aes(ymin=AVG-SE, ymax=AVG+SE), width=.2, position=position_dodge(0.9)) + theme_classic() + theme(axis.ticks.x.bottom = element_blank()) + theme(axis.text.x = element_blank())+ scale_fill_manual(values = c("darkslategray2", "darkgoldenrod4"))+ geom_text(aes(label = "A"), x = 0.77, y = 0.018, size = 5, color = "black") + geom_text(aes(label = "A"), x = 1.23, y = 0.023, size = 5, color = "black") + ylim(0, 0.025)
 
 CH_1_Tax4Fun_Gen_Graph<-CH_1_Tax4Fun_Gen_Graph+ theme(axis.text = element_text(size=14), axis.title = element_text(size=14), plot.title = element_text(size = 14, face = "bold"), legend.text = element_text(size=14), legend.title = element_text(size=14))
 
@@ -521,7 +589,7 @@ Significance per KO between Locations
 #Export Data for Top KO's that map to a specified pathway
 #File name = CH_2_KO_Env_Processing.csv
 
-CH_1_Tax4Fun_Significance<-read.csv(file = "~/CH_1_Data/Tax4Fun/CH_1_Tax4Fun_significance.csv")
+CH_1_Tax4Fun_Significance<-read.csv(file = "~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Tax4Fun/CH_1_Tax4Fun_significance.csv")
 
 CH_1_T4F_CranNP<-subset(CH_1_Tax4Fun_Significance, Location == "Cranberry NP")
 CH_1_T4F_FCLOW_NP<-subset(CH_1_Tax4Fun_Significance, Location == "French Creek NP")
@@ -553,4 +621,194 @@ t_test_Metab
 t_test_Gen<-t.test(CH_1_T4F_CranNP$Genetic, CH_1_T4F_FCLOW_NP$Genetic, var.equal = FALSE, paired=FALSE)
 
 t_test_Gen
+```
+
+
+UniFrac distances (comparing distance between fish gut microbiota and same vs. different water microbiota)
+
+WEIGHTED
+```{r}
+bb<-UniFrac(CH_1_ALL_melted, weighted = TRUE, normalized = TRUE, parallel = FALSE, fast = TRUE)
+bb_m<-as.matrix(bb)
+
+bb_m_dist = as.matrix(bb)
+bb_m_NMDS = metaMDS(bb_m_dist, trymax = 1000)
+
+CH_1_ALL_ASV_MDS1 <-bb_m_NMDS$points[,1]
+CH_1_ALL_ASV_MDS2<-bb_m_NMDS$points[,2]
+bb_m_NMDS$stress
+
+CH_1_ALL_ASV_NMDS<-data.frame(MDS1=CH_1_ALL_ASV_MDS1, MDS2=CH_1_ALL_ASV_MDS2, Sample=CH_1_ALL_ASV_metadata$Sample, Location=CH_1_ALL_ASV_metadata$Location, Loc = CH_1_ALL_ASV_metadata$Loc )
+
+CH_1_ALL_ASV<-ggplot(CH_1_ALL_ASV_NMDS, aes(x = MDS1, y = MDS2, col = Location, shape = Location)) + geom_point(size=2) + stat_ellipse(size=1.5) + theme_classic() + scale_shape_manual(values = c(16, 16, 17, 17)) + scale_colour_manual(values = c("gray", "black", "gray30", "gray50")) + labs(title = "Cranberry vs. French Creek Microbial Communities", subtitle = "Northern Pike Gut Microbiota and Water Column Bacteria", colour = "Location", shape = "Location") + geom_text(aes(label = "stress = 0.06"), x = -0.25, y = 0.35, color = "black", size = 5)
+
+
+CH_1_ALL_ASV + theme(axis.text = element_text(size=14), axis.title = element_text(size=14),plot.title = element_text(size = 14, face = "bold"))
+
+pairwise.adonis(bb_m_dist, factors = CH_1_ALL_ASV_metadata$Location)
+
+
+write.csv(bb_m, "bb_m.csv")
+
+
+#Offloaded Unifrac data matrix is manipulated to isolate all combinations of fish and water samples (and additionally fish vs. fish / water vs. water). This is done on .csv file "Unifrac_Comparison.csv" where "CW_CF" = Cranberry water vs. Cranberry fish, "CW_FF" = Cranberry water vs. French fish, "FW_FF" = French water vs. French fish, "FW_CF" = French water vs. Cranberry fish, "CW_FW" = Cranberry water vs. French water, "CF_FF" = Cranberry fish vs. French Fish.
+
+#This .csv is uploaded to R for further analysis
+CH_5_Unifrac_Analysis<-read.csv(file="~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Unifrac/CH_5_Unifrac_Comparison_2.csv", header=TRUE, check.names =FALSE)
+
+
+#Check for comparison normality - manipulate .csv file so all distances are in one column, and all groups are in one column
+
+bartlett.test(Distance ~ Group, data = CH_5_Unifrac_Analysis)
+
+
+#All comparisons are non-normal'
+
+#Re-organize .csv file so all distances/groups have their own column
+
+#Welchs's t-tests
+
+t.test(CH_5_Unifrac_Analysis$CW_CF, CH_5_Unifrac_Analysis$CF_FF, var.equal = FALSE, paired = FALSE)
+p.adjust(0.0001387, method = "bonferroni", n=15)
+t.test(CH_5_Unifrac_Analysis$CW_CF, CH_5_Unifrac_Analysis$CW_FF, var.equal = FALSE, paired = FALSE)
+p.adjust(0.1571, method = "bonferroni", n=15)
+t.test(CH_5_Unifrac_Analysis$CW_CF, CH_5_Unifrac_Analysis$CW_FW, var.equal = FALSE, paired = FALSE)
+p.adjust(2.2e-16, method = "bonferroni", n=15)
+t.test(CH_5_Unifrac_Analysis$CW_CF, CH_5_Unifrac_Analysis$FW_CF, var.equal = FALSE, paired = FALSE)
+p.adjust(0.1167, method = "bonferroni", n=15)
+t.test(CH_5_Unifrac_Analysis$CW_CF, CH_5_Unifrac_Analysis$FW_FF, var.equal = FALSE, paired = FALSE)
+p.adjust(0.06864, method = "bonferroni", n=15)
+t.test(CH_5_Unifrac_Analysis$CF_FF, CH_5_Unifrac_Analysis$CW_FF, var.equal = FALSE, paired = FALSE)
+p.adjust(1.252e-05, method = "bonferroni", n=15)
+t.test(CH_5_Unifrac_Analysis$CF_FF, CH_5_Unifrac_Analysis$CW_FW, var.equal = FALSE, paired = FALSE)
+p.adjust(2.2e-16, method = "bonferroni", n=15)
+t.test(CH_5_Unifrac_Analysis$CF_FF, CH_5_Unifrac_Analysis$FW_CF, var.equal = FALSE, paired = FALSE)
+p.adjust(5.762e-06, method = "bonferroni", n=15)
+t.test(CH_5_Unifrac_Analysis$CF_FF, CH_5_Unifrac_Analysis$FW_FF, var.equal = FALSE, paired = FALSE)
+p.adjust(3.948e-06, method = "bonferroni", n=15)
+t.test(CH_5_Unifrac_Analysis$CW_FF, CH_5_Unifrac_Analysis$CW_FW, var.equal = FALSE, paired = FALSE)
+p.adjust(2.2e-16, method = "bonferroni", n=15)
+t.test(CH_5_Unifrac_Analysis$CW_FF, CH_5_Unifrac_Analysis$FW_CF, var.equal = FALSE, paired = FALSE)
+p.adjust(0.9034, method = "bonferroni", n=15)
+t.test(CH_5_Unifrac_Analysis$CW_FF, CH_5_Unifrac_Analysis$FW_FF, var.equal = FALSE, paired = FALSE)
+p.adjust(0.7761, method = "bonferroni", n=15)
+t.test(CH_5_Unifrac_Analysis$CW_FW, CH_5_Unifrac_Analysis$FW_CF, var.equal = FALSE, paired = FALSE)
+p.adjust(2.2e-16, method = "bonferroni", n=15)
+t.test(CH_5_Unifrac_Analysis$CW_FW, CH_5_Unifrac_Analysis$FW_FF, var.equal = FALSE, paired = FALSE)
+p.adjust(2.2e-16, method = "bonferroni", n=15)
+t.test(CH_5_Unifrac_Analysis$FW_CF, CH_5_Unifrac_Analysis$FW_FF, var.equal = FALSE, paired = FALSE)
+p.adjust(0.6485, method = "bonferroni", n=15)
+
+#Unifrac bar plot
+
+CH_5_Unifrac_barplot_csv<-read.csv(file="~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Unifrac/CH_5_Unifrac_barplot_2.csv", header=TRUE, check.names =FALSE)
+
+CH_5_Unifrac_barplot_csv$Pairwise_Comparison <- factor(CH_5_Unifrac_barplot_csv$Pairwise_Comparison, levels = c("CranH2O vs. CranPike", "CranH2O vs. FrenchPike", "FrenchH2O vs. CranPike", "FrenchH2O vs. FrenchPike", "CranH2O vs. FrenchH2O", "CranPike vs. FrenchPike"))
+
+CH_5_Unifrac_barplot<-ggplot(CH_5_Unifrac_barplot_csv, aes(x=Pairwise_Comparison, y = Distance)) + geom_bar(colour = "black", stat="identity", position = position_dodge()) + ylim (0, 0.9) + theme_classic() + labs(title = "Pairwise UniFrac Distances", subtitle = "Northern Pike vs. Water Samples and Pike:Pike / Water:Water Comparisons", x = "", y = "Weighted UniFrac Distance") + scale_fill_manual(values = c("gray", "gray", "gray", "gray")) +  geom_errorbar(aes(ymin=Distance-SE, ymax = Distance+SE), width=.2, position=position_dodge(.9)) + geom_text(aes(label = "A"), x = 0.95, y = 0.79, hjust = 0, colour = "black", size = 7) + geom_text(aes(label = "A"), x = 1.95, y = 0.81, hjust = 0, colour = "black", size = 7)+ geom_text(aes(label = "A"), x = 2.95, y = 0.81, hjust = 0, colour = "black", size = 7)+ geom_text(aes(label = "A"), x = 3.95, y = 0.81, hjust = 0, colour = "black", size = 7)+ geom_text(aes(label = "B"), x = 4.95, y = 0.27, hjust = 0, colour = "black", size = 7)+ geom_text(aes(label = "C"), x = 5.95, y = 0.75, hjust = 0, colour = "black", size = 7)
+
+CH_5_Unifrac_barplot
+
+```
+
+UNWEIGHTED
+```{r}
+bb_u<-UniFrac(CH_1_ALL_melted, weighted = FALSE, normalized = TRUE, parallel = FALSE, fast = TRUE)
+bb_m_u<-as.matrix(bb_u)
+
+bb_m_u_dist = as.matrix(bb_m_u)
+bb_m_u_NMDS = metaMDS(bb_m_u_dist, trymax = 1000)
+
+CH_1_ALL_ASV_MDS1_u <-bb_m_u_NMDS$points[,1]
+CH_1_ALL_ASV_MDS2_u<-bb_m_u_NMDS$points[,2]
+bb_m_u_NMDS$stress
+
+CH_1_ALL_ASV_NMDS_u<-data.frame(MDS1=CH_1_ALL_ASV_MDS1_u, MDS2=CH_1_ALL_ASV_MDS2_u, Sample=CH_1_ALL_ASV_metadata$Sample, Location=CH_1_ALL_ASV_metadata$Location, Loc = CH_1_ALL_ASV_metadata$Loc )
+
+CH_1_ALL_ASV_u<-ggplot(CH_1_ALL_ASV_NMDS_u, aes(x = MDS1, y = MDS2, col = Location, shape = Location)) + geom_point(size=2) + stat_ellipse(size=1.5) + theme_classic() + scale_shape_manual(values = c(16, 16, 17, 17)) + scale_colour_manual(values = c("gray", "black", "gray30", "gray50")) + labs(title = "Cranberry vs. French Creek Microbial Communities", subtitle = "Northern Pike Gut Microbiota and Water Column Bacteria", colour = "Location", shape = "Location") + geom_text(aes(label = "stress = 0.06"), x = -0.25, y = 0.35, color = "black", size = 5)
+
+
+CH_1_ALL_ASV_u + theme(axis.text = element_text(size=14), axis.title = element_text(size=14),plot.title = element_text(size = 14, face = "bold"))
+
+pairwise.adonis(bb_m_u_dist, factors = CH_1_ALL_ASV_metadata$Location)
+
+
+write.csv(bb_m_u, "bb_m_u.csv")
+
+
+#Offloaded Unifrac data matrix is manipulated to isolate all combinations of fish and water samples (and additionally fish vs. fish / water vs. water). This is done on .csv file "Unifrac_Comparison_u.csv" where "CW_CF" = Cranberry water vs. Cranberry fish, "CW_FF" = Cranberry water vs. French fish, "FW_FF" = French water vs. French fish, "FW_CF" = French water vs. Cranberry fish, "CW_FW" = Cranberry water vs. French water, "CF_FF" = Cranberry fish vs. French Fish.
+
+#This .csv is uploaded to R for further analysis
+CH_5_Unifrac_Analysis_u<-read.csv(file="~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Unifrac/CH_5_Unifrac_Comparison_u.csv", header=TRUE, check.names =FALSE)
+
+
+#Check for comparison normality - manipulate .csv file so all distances are in one column, and all groups are in one column
+
+CH_5_Unifrac_Analysis_u_Bartlett<-read.csv(file="~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Unifrac/CH_5_Unifrac_Comparison_u_Bartlett.csv", header=TRUE, check.names =FALSE)
+
+bartlett.test(Distance ~ Group, data = CH_5_Unifrac_Analysis_u_Bartlett)
+
+
+#All comparisons are non-normal'
+
+#Re-organize .csv file so all distances/groups have their own column
+
+#Welchs's t-tests
+
+t.test(CH_5_Unifrac_Analysis_u$CW_CF, CH_5_Unifrac_Analysis_u$CF_FF, var.equal = FALSE, paired = FALSE)
+p.adjust(2.2e-16, method = "bonferroni", n=15)
+#3.3e-15
+t.test(CH_5_Unifrac_Analysis_u$CW_CF, CH_5_Unifrac_Analysis_u$CW_FF, var.equal = FALSE, paired = FALSE)
+p.adjust(1.334e-07, method = "bonferroni", n=15)
+#2.001e-06
+t.test(CH_5_Unifrac_Analysis_u$CW_CF, CH_5_Unifrac_Analysis_u$CW_FW, var.equal = FALSE, paired = FALSE)
+p.adjust(2.2e-16, method = "bonferroni", n=15)
+#3.3e-15
+t.test(CH_5_Unifrac_Analysis_u$CW_CF, CH_5_Unifrac_Analysis_u$FW_CF, var.equal = FALSE, paired = FALSE)
+p.adjust(0.2732, method = "bonferroni", n=15)
+#1
+t.test(CH_5_Unifrac_Analysis_u$CW_CF, CH_5_Unifrac_Analysis_u$FW_FF, var.equal = FALSE, paired = FALSE)
+p.adjust(8.141e-06, method = "bonferroni", n=15)
+#0.000122115
+t.test(CH_5_Unifrac_Analysis_u$CF_FF, CH_5_Unifrac_Analysis_u$CW_FF, var.equal = FALSE, paired = FALSE)
+p.adjust(2.2e-16, method = "bonferroni", n=15)
+#3.3e-15
+t.test(CH_5_Unifrac_Analysis_u$CF_FF, CH_5_Unifrac_Analysis_u$CW_FW, var.equal = FALSE, paired = FALSE)
+p.adjust(2.2e-16, method = "bonferroni", n=15)
+#3.3e-15
+t.test(CH_5_Unifrac_Analysis_u$CF_FF, CH_5_Unifrac_Analysis_u$FW_CF, var.equal = FALSE, paired = FALSE)
+p.adjust(2.2e-16, method = "bonferroni", n=15)
+#3.3e-15
+t.test(CH_5_Unifrac_Analysis_u$CF_FF, CH_5_Unifrac_Analysis_u$FW_FF, var.equal = FALSE, paired = FALSE)
+p.adjust(2.2e-16, method = "bonferroni", n=15)
+#3.3e-15
+t.test(CH_5_Unifrac_Analysis_u$CW_FF, CH_5_Unifrac_Analysis_u$CW_FW, var.equal = FALSE, paired = FALSE)
+p.adjust(2.2e-16, method = "bonferroni", n=15)
+#3.3e-15
+t.test(CH_5_Unifrac_Analysis_u$CW_FF, CH_5_Unifrac_Analysis_u$FW_CF, var.equal = FALSE, paired = FALSE)
+p.adjust(1.497e-09, method = "bonferroni", n=15)
+#2.25e-08
+t.test(CH_5_Unifrac_Analysis_u$CW_FF, CH_5_Unifrac_Analysis_u$FW_FF, var.equal = FALSE, paired = FALSE)
+p.adjust(0.4801, method = "bonferroni", n=15)
+#1
+t.test(CH_5_Unifrac_Analysis_u$CW_FW, CH_5_Unifrac_Analysis_u$FW_CF, var.equal = FALSE, paired = FALSE)
+p.adjust(2.2e-16, method = "bonferroni", n=15)
+#3.3e-15
+t.test(CH_5_Unifrac_Analysis_u$CW_FW, CH_5_Unifrac_Analysis_u$FW_FF, var.equal = FALSE, paired = FALSE)
+p.adjust(2.2e-16, method = "bonferroni", n=15)
+#3.3e-15
+t.test(CH_5_Unifrac_Analysis_u$FW_CF, CH_5_Unifrac_Analysis_u$FW_FF, var.equal = FALSE, paired = FALSE)
+p.adjust(1.557e-07, method = "bonferroni", n=15)
+#2.34e-06
+
+#Unifrac bar plot
+
+CH_5_Unifrac_barplot_u_csv<-read.csv(file="~/Dropbox/bdgallo_MS_SUNYESF/Ch1_3_Data_Files_Analysis/CH_1_Data/Unifrac/CH_5_Unifrac_barplot_2_u.csv", header=TRUE, check.names =FALSE)
+
+CH_5_Unifrac_barplot_u_csv$Pairwise_Comparison <- factor(CH_5_Unifrac_barplot_u_csv$Pairwise_Comparison, levels = c("CranH2O vs. CranPike", "CranH2O vs. FrenchPike", "FrenchH2O vs. CranPike", "FrenchH2O vs. FrenchPike", "CranH2O vs. FrenchH2O", "CranPike vs. FrenchPike"))
+
+CH_5_Unifrac_u_barplot<-ggplot(CH_5_Unifrac_barplot_u_csv, aes(x=Pairwise_Comparison, y = Distance)) + geom_bar(colour = "black", stat="identity", position = position_dodge()) + ylim (0, 0.9) + theme_classic() + labs(title = "Pairwise Unweighted UniFrac Distances", subtitle = "Northern Pike vs. Water Samples and Pike:Pike / Water:Water Comparisons", x = "", y = "Unweighted UniFrac Distance") + scale_fill_manual(values = c("gray", "gray", "gray", "gray")) +  geom_errorbar(aes(ymin=Distance-SE, ymax = Distance+SE), width=.2, position=position_dodge(.9)) + geom_text(aes(label = "A"), x = 0.95, y = 0.86, hjust = 0, colour = "black", size = 7) + geom_text(aes(label = "B"), x = 1.95, y = 0.86, hjust = 0, colour = "black", size = 7)+ geom_text(aes(label = "A"), x = 2.95, y = 0.86, hjust = 0, colour = "black", size = 7)+ geom_text(aes(label = "B"), x = 3.95, y = 0.86, hjust = 0, colour = "black", size = 7)+ geom_text(aes(label = "C"), x = 4.95, y = 0.41, hjust = 0, colour = "black", size = 7)+ geom_text(aes(label = "D"), x = 5.95, y = 0.64, hjust = 0, colour = "black", size = 7)
+
+CH_5_Unifrac_u_barplot
+
 ```
