@@ -5,7 +5,11 @@ Weclome to the SOP Repository!
 
 The data included in this repository pertains to the collection of samples and data analysis associated with the following publication:
 
-TBD
+Northern pike (Esox lucius) young-of-year gut microbiota and associations with wetland nursery water microbial communities in the St. Lawrence River
+B. D. Gallo, J. M. Farrell, & B. F. Leydet
+Aquaculture, Fish and Fisheries (2022)
+https://onlinelibrary.wiley.com/doi/full/10.1002/aff2.67
+
 
 Provided below is a quick guide for understanding the contents of this repository. Please contact me if you have any questions. Enjoy!
 
